@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#00FFFFFF"
+    tools:context=".ui.MainActivity">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/panelIp"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:background="@drawable/nav_background"
+        android:padding="16dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <TextView
+            android:id="@+id/tvMaxTemp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Макс. температура"
+            android:textColor="#000000"
+            android:textSize="16sp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"/>
+
+        <TextView
+            android:id="@+id/tvUnsavedMaxTemp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="* Не сохранено"
+            android:textColor="#D32F2F"
+            android:textSize="16sp"
+            android:textStyle="italic"
+            android:visibility="gone"
+            app:layout_constraintBaseline_toBaselineOf="@id/tvMaxTemp"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/sliderMaxTemp"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:valueFrom="0"
+            android:valueTo="50"
+            android:stepSize="1"
+            style="@style/slider_rounded"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/edMaxTemp"
+            app:layout_constraintTop_toBottomOf="@id/tvMaxTemp"
+            app:layout_constraintHorizontal_weight="1"
+            android:layout_marginEnd="8dp"/>
+
+        <EditText
+            android:id="@+id/edMaxTemp"
+            android:layout_width="64dp"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:hint="0"
+            android:gravity="center"
+            android:textColor="#000"
+            android:textColorHint="#999"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@id/sliderMaxTemp"
+            app:layout_constraintBottom_toBottomOf="@id/sliderMaxTemp" />
+
+        <TextView
+            android:id="@+id/tvMinHum"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Мин. влажность"
+            android:textColor="#000000"
+            android:textSize="16sp"
+            app:layout_constraintTop_toBottomOf="@id/sliderMaxTemp"
+            app:layout_constraintStart_toStartOf="parent"
+            android:layout_marginTop="16dp"/>
+
+        <TextView
+            android:id="@+id/tvUnsavedMinHum"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="* Не сохранено"
+            android:textColor="#D32F2F"
+            android:textSize="16sp"
+            android:textStyle="italic"
+            android:visibility="gone"
+            app:layout_constraintBaseline_toBaselineOf="@id/tvMinHum"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/sliderMinHum"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:valueFrom="0"
+            android:valueTo="100"
+            android:stepSize="1"
+            style="@style/slider_rounded"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/edMinHum"
+            app:layout_constraintTop_toBottomOf="@id/tvMinHum"
+            android:layout_marginEnd="8dp"/>
+
+        <EditText
+            android:id="@+id/edMinHum"
+            android:layout_width="64dp"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:hint="0"
+            android:gravity="center"
+            android:textColor="#000"
+            android:textColorHint="#999"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@id/sliderMinHum"
+            app:layout_constraintBottom_toBottomOf="@id/sliderMinHum" />
+
+        <TextView
+            android:id="@+id/tvMinLight"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Мин. освещенность"
+            android:textColor="#000000"
+            android:textSize="16sp"
+            app:layout_constraintTop_toBottomOf="@id/sliderMinHum"
+            app:layout_constraintStart_toStartOf="parent"
+            android:layout_marginTop="16dp"/>
+
+        <TextView
+            android:id="@+id/tvUnsavedMinLight"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="* Не сохранено"
+            android:textColor="#D32F2F"
+            android:textSize="16sp"
+            android:textStyle="italic"
+            android:visibility="gone"
+            app:layout_constraintBaseline_toBaselineOf="@id/tvMinLight"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/sliderMinLight"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:valueFrom="0"
+            android:valueTo="100"
+            android:stepSize="1"
+            style="@style/slider_rounded"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/edMinLight"
+            app:layout_constraintTop_toBottomOf="@id/tvMinLight"
+            android:layout_marginEnd="8dp"/>
+
+        <EditText
+            android:id="@+id/edMinLight"
+            android:layout_width="64dp"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:hint="0"
+            android:gravity="center"
+            android:textColor="#000"
+            android:textColorHint="#999"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@id/sliderMinLight"
+            app:layout_constraintBottom_toBottomOf="@id/sliderMinLight" />
+
+        <Button
+            android:id="@+id/bApply"
+            android:layout_width="0dp"
+            android:layout_height="60dp"
+            android:layout_marginTop="24dp"
+            android:layout_marginEnd="16dp"
+            android:text="Применить"
+            android:textColor="#FFFFFF"
+            android:theme="@style/btn_rounded"
+            app:cornerRadius="24dp"
+            app:layout_constraintEnd_toStartOf="@+id/bResetSetup"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/sliderMinLight" />
+
+        <ImageButton
+            android:id="@+id/bResetSetup"
+            style="@style/btn_circle"
+            android:layout_width="55dp"
+            android:layout_height="55dp"
+            android:contentDescription="Обновить"
+            android:src="@drawable/ic_renew"
+            app:layout_constraintBottom_toBottomOf="@+id/bApply"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/bApply" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

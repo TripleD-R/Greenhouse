@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/panelInfo"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:background="@drawable/nav_background"
+        android:padding="16dp"
+        app:layout_constraintBottom_toTopOf="@+id/panelIp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <ImageView
+            android:id="@+id/imgConnection"
+            android:layout_width="200dp"
+            android:layout_height="200dp"
+            android:contentDescription="@string/info_image"
+            android:src="@drawable/connection"
+            app:layout_constraintBottom_toTopOf="@+id/tvInfo"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/tvInfo"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:lineSpacingExtra="4dp"
+            android:padding="8dp"
+            android:text="Здравствуйте! Чтобы подключить приложение к модулю умной теплицы, убедитесь, что и приложение, и модуль подключены к одной Wi-Fi сети. После этого введите IP-адрес, указанный на экране модуля."
+            android:textColor="#000000"
+            android:textSize="16sp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/panelIp"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:background="@drawable/nav_background"
+        android:padding="16dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <EditText
+            android:id="@+id/edIp"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="16dp"
+            android:autoSizeMaxTextSize="40sp"
+            android:autoSizeMinTextSize="30sp"
+            android:autoSizeStepGranularity="2sp"
+            android:hint="Введите ваш IP"
+            android:inputType="text"
+            android:minHeight="48dp"
+            android:textColor="#000000"
+            android:textColorHint="#999999"
+            android:textColorLink="#2C2727"
+            android:textSize="30sp"
+            android:visibility="visible"
+            app:layout_constraintBottom_toTopOf="@+id/bSave"
+            app:layout_constraintEnd_toStartOf="@+id/bResetConnection"
+            app:layout_constraintStart_toStartOf="parent" />
+
+        <ImageButton
+            android:id="@+id/bResetConnection"
+            style="@style/btn_circle"
+            android:layout_width="55dp"
+            android:layout_height="55dp"
+            android:contentDescription="Обновить"
+            android:src="@drawable/ic_renew"
+            app:layout_constraintBottom_toBottomOf="@+id/edIp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/edIp" />
+
+        <Button
+            android:id="@+id/bSave"
+            android:layout_width="0dp"
+            android:layout_height="60dp"
+            android:text="Сохранить"
+            android:textColor="#FFFFFF"
+            android:theme="@style/btn_rounded"
+            app:cornerRadius="24dp"
+            app:layout_constraintBottom_toBottomOf="@+id/panelIp"
+            app:layout_constraintEnd_toEndOf="@+id/panelIp"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toStartOf="@+id/panelIp" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
