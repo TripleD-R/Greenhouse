@@ -1,4 +1,5 @@
 package com.example.test.ui;
+
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -36,79 +37,54 @@ public class ConnectionFragment extends Fragment {
                 .placeholder(R.drawable.connection_static)
                 .into(binding.imgConnection);
 
-
-        viewModel.clearFocusOnKeyboardClose(requireContext(), binding.getRoot(), binding.edIp);
-
-        binding.getRoot().getViewTreeObserver().addOnGlobalLayoutListener(() -> {
-            int screenHeight = binding.getRoot().getRootView().getHeight();
-            int visibleHeight = binding.getRoot().getHeight();
-            int heightDiff = screenHeight - visibleHeight;
-
-            boolean keyboardOpen = heightDiff > screenHeight * 0.25;
-
-            binding.imgConnection.setVisibility(keyboardOpen ? View.GONE : View.VISIBLE);
-        });
-
-        onClickSaveIp();
-        getIp();
-        onClickRefreshIp();
+        onClickConnect();
+        observeConnectionStatus();
 
         return binding.getRoot();
     }
 
-    // Функция вставки ip, если таковой сохранён
-    private void getIp() {
-        String ip = viewModel.getSavedIp(requireContext());
-        if (!ip.isEmpty()) {
-            binding.edIp.setText(ip);
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Если уже было подключение — восстанавливаем статус
+        Boolean connected = viewModel.getIsConnected().getValue();
+        if (connected != null && connected) {
+            binding.bConnect.setText("Отключиться");
+            binding.bConnect.setBackgroundTintList(
+                android.content.res.ColorStateList.valueOf(0xFFF44336));
         }
     }
 
-    // Вставка ip при нажатии на кнопку
-    private void onClickRefreshIp() {
-        binding.bResetConnection.setOnClickListener(v -> {
-            String ip = viewModel.getSavedIp(requireContext());
-            if (!ip.isEmpty()) {
-                binding.edIp.setText(ip);
+    private void observeConnectionStatus() {
+        viewModel.getIsConnected().observe(getViewLifecycleOwner(), connected -> {
+            if (connected) {
+                binding.bConnect.setText("Отключиться");
+                binding.bConnect.setBackgroundTintList(
+                    android.content.res.ColorStateList.valueOf(0xFFF44336));
             } else {
-                SharedViewModel.showToast(requireContext(), "Нет сохранённого IP");
+                binding.bConnect.setText("Подключиться");
+                binding.bConnect.setBackgroundTintList(
+                    android.content.res.ColorStateList.valueOf(0xFF4CAF50));
             }
         });
-    }
-    // Функция проверки поля при нажатии на кнопку
-    private void onClickSaveIp() {
-        binding.bSave.setOnClickListener(v -> {
-            String newIp = binding.edIp.getText().toString().trim();
 
-            if (newIp.isEmpty()) {
-                SharedViewModel.showToast(requireContext(), "Введите IP адрес");
-                return;
-            }
-
-            if (!isValidIp(newIp)) {
-                SharedViewModel.showToast(requireContext(), "Неверный формат IP");
-                return;
-            }
-
-            viewModel.saveIp(requireContext(), newIp);
-            SharedViewModel.showToast(requireContext(), "Адрес успешно сохранён");
+        viewModel.getConnectionStatus().observe(getViewLifecycleOwner(), status -> {
+            binding.tvConnectionStatus.setText(status);
         });
     }
 
-    // Метод для проверки корректного IP при помощи регулярного выражения
-    private boolean isValidIp(String ip) {
-        String ipPattern = "^((25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)\\.){3}(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)$";
-
-        // Проверка на соответствие выражению
-        if (!ip.matches(ipPattern)) return false;
-
-        // Проверка на отсутствие ведущих нулей
-        String[] parts = ip.split("\\.");
-        for (String part : parts) {
-            if (part.length() > 1 && part.startsWith("0")) {
-                return false; // ведущий ноль недопустим
+    // Кнопка подключения/отключения
+    private void onClickConnect() {
+        binding.bConnect.setOnClickListener(v -> {
+            Boolean connected = viewModel.getIsConnected().getValue();
+            if (connected != null && connected) {
+                // Уже подключён — отключаемся
+                viewModel.disconnectFromServer();
+            } else {
+                // Подключаемся
+                viewModel.connectToServer();
+                binding.tvConnectionStatus.setText("Подключение...");
             }
-        }
-        return true;
+        });
     }
 }

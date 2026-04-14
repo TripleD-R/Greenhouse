@@ -41,6 +41,8 @@ dependencies {
     implementation(libs.material)
     implementation(libs.activity)
     implementation(libs.constraintlayout)
+    implementation("io.socket:socket.io-client:2.0.0")
+    implementation("org.json:json:20210307")
     implementation("com.github.PhilJay:MPAndroidChart:v3.0.3")
     implementation("com.squareup.okhttp3:okhttp:5.1.0")
     implementation("com.google.android.material:material:1.12.0")

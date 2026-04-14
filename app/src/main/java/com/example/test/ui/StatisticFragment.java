@@ -20,6 +20,8 @@ import androidx.lifecycle.ViewModelProvider;
 import com.example.test.databinding.FragmentStatisticBinding;
 import com.example.test.viewmodel.SharedViewModel;
 
+import java.util.List;
+
 public class StatisticFragment extends Fragment {
 
     private FragmentStatisticBinding binding;
@@ -34,7 +36,7 @@ public class StatisticFragment extends Fragment {
     private LineDataSet lightDataSet;
     private LineData lightLineData;
 
-    private int maxPoints = 20; // Отображение последних N значений
+    private int maxPoints = 20;
 
     @Nullable
     @Override
@@ -50,18 +52,15 @@ public class StatisticFragment extends Fragment {
         setupHumChart();
         setupLightChart();
 
-        // Загрузка последних значений
-        java.util.List<SensorData> lastValues = viewModel.getLastValues(maxPoints);
-        for (SensorData data : lastValues) {
-            addTempPoint(data.getTemperature());
-            addHumPoint(data.getHumidity());
-            addLightPoint(data.getLight());
-        }
+        // Загрузка последних значений из локальной БД (кэш)
+        loadLocalHistory();
 
-        // Наблюдение за поступающими данными
+        // Загрузка истории с сервера (актуальные данные текущей сессии)
+        loadServerHistory();
+
+        // Наблюдение за поступающими данными (WebSocket или polling)
         viewModel.getSensorData().observe(getViewLifecycleOwner(), data -> {
             if (data != null) {
-
                 // Обновление текстовых значений
                 binding.tvTemp.setText(String.format("%.1f °C", data.getTemperature()));
                 binding.tvHum.setText(String.format("%.1f %%", data.getHumidity()));
@@ -77,71 +76,96 @@ public class StatisticFragment extends Fragment {
         return binding.getRoot();
     }
 
+    /**
+     * Загрузить локальный кэш (быстрое отображение при старте)
+     */
+    private void loadLocalHistory() {
+        List<SensorData> lastValues = viewModel.getLastValues(maxPoints);
+        for (SensorData data : lastValues) {
+            addTempPoint(data.getTemperature());
+            addHumPoint(data.getHumidity());
+            addLightPoint(data.getLight());
+        }
+    }
+
+    /**
+     * Загрузить актуальные данные текущей сессии с сервера.
+     * При этом очищаем локальную историю, чтобы не смешивать
+     * данные прошлой и текущей сессии.
+     */
+    private void loadServerHistory() {
+        viewModel.loadHistoryFromServer(history -> {
+            // Очищаем графики и заполняем данными с сервера
+            requireActivity().runOnUiThread(() -> {
+                clearCharts();
+
+                for (SensorData data : history) {
+                    addTempPoint(data.getTemperature());
+                    addHumPoint(data.getHumidity());
+                    addLightPoint(data.getLight());
+                }
+
+                // Обновляем текстовые значения последним элементом
+                if (!history.isEmpty()) {
+                    SensorData last = history.get(history.size() - 1);
+                    binding.tvTemp.setText(String.format("%.1f °C", last.getTemperature()));
+                    binding.tvHum.setText(String.format("%.1f %%", last.getHumidity()));
+                    binding.tvLight.setText(String.format("%.1f %%", last.getLight()));
+                }
+            });
+        });
+    }
+
     // График температуры
     private void setupTempChart() {
         LineChart chart = binding.chartTemp;
 
-        // Создание набора данных для температуры
         tempDataSet = new LineDataSet(null, "Temperature");
-        tempDataSet.setDrawCircles(false);   // Отключение точек
-        tempDataSet.setDrawValues(false);    // Отключение подписей
-        tempDataSet.setLineWidth(2f);        // Толщина линии
-
-        // Цвет красный
+        tempDataSet.setDrawCircles(false);
+        tempDataSet.setDrawValues(false);
+        tempDataSet.setLineWidth(2f);
         tempDataSet.setColor(Color.parseColor("#FF5722"));
 
-        // Подключение набора данных к графику
         tempLineData = new LineData(tempDataSet);
         chart.setData(tempLineData);
 
-        chart.getDescription().setEnabled(false); // Отключение надписи Description
-        chart.getLegend().setEnabled(false);      // Отключение легенды
+        chart.getDescription().setEnabled(false);
+        chart.getLegend().setEnabled(false);
 
-        // Настройка оси X
         XAxis x = chart.getXAxis();
-        x.setDrawLabels(false);       // Отсутствие подписей
-        x.setDrawGridLines(false);    // Отсутствие сетки
+        x.setDrawLabels(false);
+        x.setDrawGridLines(false);
 
-        // Настройка оси Y
         YAxis y = chart.getAxisLeft();
         y.setDrawGridLines(false);
 
-        chart.getAxisRight().setEnabled(false); // Отключение правой оси
+        chart.getAxisRight().setEnabled(false);
     }
 
     private void addTempPoint(float value) {
-        LineChart chart = binding.chartTemp;
-
-        // Добавление новой точки
         tempDataSet.addEntry(new Entry(tempDataSet.getEntryCount(), value));
 
-        // Удаление первой точки, если их больше максимума
         if (tempDataSet.getEntryCount() > maxPoints) {
             tempDataSet.removeFirst();
-            reindex(tempDataSet); // Сдвижение графика
+            reindex(tempDataSet);
         }
 
-        // Обновление графика
         tempLineData.notifyDataChanged();
-        chart.notifyDataSetChanged();
-        chart.setVisibleXRangeMaximum(maxPoints); // последние N точек
-        chart.moveViewToX(tempDataSet.getEntryCount()); // автопрокрутка вправо
+        binding.chartTemp.notifyDataSetChanged();
+        binding.chartTemp.setVisibleXRangeMaximum(maxPoints);
+        binding.chartTemp.moveViewToX(tempDataSet.getEntryCount());
     }
 
     // График влажности
     private void setupHumChart() {
         LineChart chart = binding.chartHum;
 
-        // Создание набора данных для влажности
         humDataSet = new LineDataSet(null, "Humidity");
         humDataSet.setDrawCircles(false);
         humDataSet.setDrawValues(false);
         humDataSet.setLineWidth(2f);
-
-        // Цвет синий
         humDataSet.setColor(Color.parseColor("#2196F3"));
 
-        // Подключение набора данных
         humLineData = new LineData(humDataSet);
         chart.setData(humLineData);
 
@@ -159,38 +183,29 @@ public class StatisticFragment extends Fragment {
     }
 
     private void addHumPoint(float value) {
-        LineChart chart = binding.chartHum;
-
-        // Добавление новой точки
         humDataSet.addEntry(new Entry(humDataSet.getEntryCount(), value));
 
-        // Ограничение количества
         if (humDataSet.getEntryCount() > maxPoints) {
             humDataSet.removeFirst();
             reindex(humDataSet);
         }
 
-        // Обновление графика
         humLineData.notifyDataChanged();
-        chart.notifyDataSetChanged();
-        chart.setVisibleXRangeMaximum(maxPoints);
-        chart.moveViewToX(humDataSet.getEntryCount());
+        binding.chartHum.notifyDataSetChanged();
+        binding.chartHum.setVisibleXRangeMaximum(maxPoints);
+        binding.chartHum.moveViewToX(humDataSet.getEntryCount());
     }
 
     // График освещённости
     private void setupLightChart() {
         LineChart chart = binding.chartLight;
 
-        // Создание набора данных для освещённости
         lightDataSet = new LineDataSet(null, "Light");
         lightDataSet.setDrawCircles(false);
         lightDataSet.setDrawValues(false);
         lightDataSet.setLineWidth(2f);
-
-        // Цвет жёлтый
         lightDataSet.setColor(Color.parseColor("#DBCB16"));
 
-        // Подключение набора данных
         lightLineData = new LineData(lightDataSet);
         chart.setData(lightLineData);
 
@@ -208,49 +223,56 @@ public class StatisticFragment extends Fragment {
     }
 
     private void addLightPoint(float value) {
-        LineChart chart = binding.chartLight;
-
-        // Добавление новой точки
         lightDataSet.addEntry(new Entry(lightDataSet.getEntryCount(), value));
 
-        // Ограничение количества
         if (lightDataSet.getEntryCount() > maxPoints) {
             lightDataSet.removeFirst();
             reindex(lightDataSet);
         }
 
-        // Обновление графика
         lightLineData.notifyDataChanged();
-        chart.notifyDataSetChanged();
-        chart.setVisibleXRangeMaximum(maxPoints);
-        chart.moveViewToX(lightDataSet.getEntryCount());
+        binding.chartLight.notifyDataSetChanged();
+        binding.chartLight.setVisibleXRangeMaximum(maxPoints);
+        binding.chartLight.moveViewToX(lightDataSet.getEntryCount());
     }
 
-    // Смещение графика
     private void reindex(LineDataSet set) {
-        // После удаления первой точки нужно пересчитать X,
-        // иначе график "прыгает" из-за разрывов в индексации
         for (int i = 0; i < set.getEntryCount(); i++) {
             set.getEntryForIndex(i).setX(i);
         }
     }
 
-    // Запуск автообновления
-    @Override
-    public void onResume() {
-        super.onResume();
-//        viewModel.startTestData();
-        String ip = viewModel.getSavedIp(requireContext());
-        if (!ip.isEmpty()) {
-            viewModel.startAutoUpdate(ip, 2000); // обновление каждые 2 сек
+    /**
+     * Очистить все графики
+     */
+    private void clearCharts() {
+        if (tempDataSet != null) {
+            tempDataSet.clear();
+            tempLineData.notifyDataChanged();
+            binding.chartTemp.notifyDataSetChanged();
+        }
+        if (humDataSet != null) {
+            humDataSet.clear();
+            humLineData.notifyDataChanged();
+            binding.chartHum.notifyDataSetChanged();
+        }
+        if (lightDataSet != null) {
+            lightDataSet.clear();
+            lightLineData.notifyDataChanged();
+            binding.chartLight.notifyDataSetChanged();
         }
     }
 
-//    // Остановка автообновления
-//    @Override
-//    public void onPause() {
-//        super.onPause();
-//        viewModel.stopTestData();
-//        viewModel.stopAutoUpdate();
-//    }
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Запускаем polling только если WebSocket не активен
+        viewModel.startAutoUpdate(2000);
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        viewModel.stopAutoUpdate();
+    }
 }

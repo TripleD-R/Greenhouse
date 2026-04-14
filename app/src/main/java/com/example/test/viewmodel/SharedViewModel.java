@@ -16,43 +16,101 @@ import androidx.lifecycle.MutableLiveData;
 
 import com.example.test.model.SensorData;
 import com.example.test.network.MicrocontrollerRepository;
+import com.example.test.network.SocketManager;
 import com.example.test.repository.SensorHistoryRepository;
+
+import java.util.List;
 
 public class SharedViewModel extends AndroidViewModel {
 
     private static final String PREF_NAME = "MyPref";
-    private static final String KEY_IP = "ip";
     private static final String KEY_MAX_TEMP = "max_temp";
     private static final String KEY_MIN_HUM = "min_hum";
     private static final String KEY_MIN_LIGHT = "min_light";
 
-    private final MicrocontrollerRepository repo = new MicrocontrollerRepository();
+    private final MicrocontrollerRepository repo;
     private final SensorHistoryRepository historyRepository;
+    private final SocketManager socketManager;
 
     private final MutableLiveData<SensorData> sensorData = new MutableLiveData<>();
+    private final MutableLiveData<Boolean> isConnected = new MutableLiveData<>(false);
+    private final MutableLiveData<String> connectionStatus = new MutableLiveData<>("Не подключено");
+
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Runnable updateRunnable;
     private boolean isUpdating = false;
     private static Toast currentToast;
 
+    // Флаг: используем WebSocket или HTTP polling
+    private boolean useWebSocket = false;
+
+    // Текущие настройки (для отображения "не сохранено")
+    private int currentMaxTemp = 25;
+    private int currentMinHum = 40;
+    private int currentMinLight = 30;
+
     public SharedViewModel(@NonNull Application application) {
         super(application);
         historyRepository = new SensorHistoryRepository(application);
+        repo = new MicrocontrollerRepository();
+        socketManager = new SocketManager();
+
+        // Настраиваем слушатели WebSocket
+        setupSocketListeners();
+
+        // Автоматическое подключение при запуске приложения
+        connectToServer();
     }
 
-    // Сохранение IP
-    public void saveIp(Context context, String ip) {
-        SharedPreferences pref = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-        pref.edit().putString(KEY_IP, ip).apply();
+    private void setupSocketListeners() {
+        // Данные с датчиков через WebSocket
+        socketManager.setSensorDataListener(data -> {
+            sensorData.postValue(data);
+            historyRepository.insert(data);
+        });
+
+        // Настройки изменились (кто-то обновил)
+        socketManager.setSettingsListener((maxTemp, minHum, minLight) -> {
+            saveSettings(getApplication(), maxTemp, minHum, minLight);
+            currentMaxTemp = maxTemp;
+            currentMinHum = minHum;
+            currentMinLight = minLight;
+            // Не показываем тост здесь — он уже показан при отправке настроек
+            // showToast(getApplication(), "Настройки обновлены");
+        });
+
+        // Состояние подключения
+        socketManager.setConnectionStateListener(new SocketManager.ConnectionStateListener() {
+            @Override
+            public void onConnected() {
+                isConnected.postValue(true);
+                connectionStatus.postValue("Подключено");
+                useWebSocket = true;
+
+                // Запрашиваем текущие настройки
+                socketManager.requestSettings((maxTemp, minHum, minLight) -> {
+                    saveSettings(getApplication(), maxTemp, minHum, minLight);
+                });
+            }
+
+            @Override
+            public void onDisconnected() {
+                isConnected.postValue(false);
+                connectionStatus.postValue("Отключено");
+                useWebSocket = false;
+            }
+
+            @Override
+            public void onConnectionError(String error) {
+                isConnected.postValue(false);
+                connectionStatus.postValue("Ошибка подключения");
+                useWebSocket = false;
+            }
+        });
     }
 
-    // Получение IP
-    public String getSavedIp(Context context) {
-        SharedPreferences pref = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-        return pref.getString(KEY_IP, "");
-    }
+    // ======================== Настройки ========================
 
-    // Сохранение настроек
     public void saveSettings(Context context, int maxTemp, int minHum, int minLight) {
         SharedPreferences pref = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
         pref.edit()
@@ -60,48 +118,99 @@ public class SharedViewModel extends AndroidViewModel {
                 .putInt(KEY_MIN_HUM, minHum)
                 .putInt(KEY_MIN_LIGHT, minLight)
                 .apply();
+        currentMaxTemp = maxTemp;
+        currentMinHum = minHum;
+        currentMinLight = minLight;
     }
 
-    // Получение сохранённых настроек
     public int getMaxTemp(Context context) {
         SharedPreferences pref = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-        return pref.getInt(KEY_MAX_TEMP, 25); // 25 — значение по умолчанию
+        return pref.getInt(KEY_MAX_TEMP, 25);
     }
 
     public int getMinHum(Context context) {
         SharedPreferences pref = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-        return pref.getInt(KEY_MIN_HUM, 40); // 40% — значение по умолчанию
+        return pref.getInt(KEY_MIN_HUM, 40);
     }
 
     public int getMinLight(Context context) {
         SharedPreferences pref = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-        return pref.getInt(KEY_MIN_LIGHT, 30); // 30 — значение по умолчанию
+        return pref.getInt(KEY_MIN_LIGHT, 30);
     }
 
-    // Получение LiveData (для наблюдения из StatisticFragment)
+    public int getCurrentMaxTemp() { return currentMaxTemp; }
+    public int getCurrentMinHum() { return currentMinHum; }
+    public int getCurrentMinLight() { return currentMinLight; }
+
+    // ======================== LiveData ========================
+
     public LiveData<SensorData> getSensorData() {
         return sensorData;
     }
 
-    // Запуск автоматического обновления каждые intervalMs миллисекунд
-    public void startAutoUpdate(String ip, int intervalMs) {
+    public LiveData<Boolean> getIsConnected() {
+        return isConnected;
+    }
+
+    public LiveData<String> getConnectionStatus() {
+        return connectionStatus;
+    }
+
+    // ======================== Подключение к серверу ========================
+
+    /**
+     * Подключиться к серверу через WebSocket
+     */
+    public void connectToServer() {
+        useWebSocket = true;
+        socketManager.connect();
+    }
+
+    /**
+     * Отключиться от сервера
+     */
+    public void disconnectFromServer() {
+        useWebSocket = false;
+        socketManager.disconnect();
+        stopAutoUpdate();
+        isConnected.postValue(false);
+        connectionStatus.postValue("Отключено");
+    }
+
+    /**
+     * Проверить связь с сервером (HTTP ping)
+     */
+    public void pingServer(PingCallback callback) {
+        new Thread(() -> {
+            boolean result = repo.pingServer();
+            handler.post(() -> callback.onPingResult(result));
+        }).start();
+    }
+
+    public interface PingCallback {
+        void onPingResult(boolean success);
+    }
+
+    // ======================== Polling (fallback без WebSocket) ========================
+
+    public void startAutoUpdate(int intervalMs) {
         if (isUpdating) return;
+        // Если WebSocket активен — polling не нужен
+        if (useWebSocket && socketManager.isConnected()) return;
+
         isUpdating = true;
 
         updateRunnable = new Runnable() {
             @Override
             public void run() {
                 new Thread(() -> {
-                    SensorData data = repo.fetchSensorData(ip);
+                    SensorData data = repo.fetchSensorData();
                     if (data != null) {
                         sensorData.postValue(data);
-
-                        // NEW: сохраняем данные в SQLite
                         historyRepository.insert(data);
                     }
                 }).start();
 
-                // Планируем следующий запуск, если обновление всё ещё активно
                 if (isUpdating) handler.postDelayed(this, intervalMs);
             }
         };
@@ -109,7 +218,6 @@ public class SharedViewModel extends AndroidViewModel {
         handler.post(updateRunnable);
     }
 
-    // Остановка автообновления
     public void stopAutoUpdate() {
         isUpdating = false;
         if (updateRunnable != null) {
@@ -118,12 +226,81 @@ public class SharedViewModel extends AndroidViewModel {
         }
     }
 
-    // Типа клонирование метода из MicrocontrollerRepository
-    public String sendSettings(String ip, int maxTemp, int minHum, int minLight) {
-        return repo.sendSettings(ip, maxTemp, minHum, minLight);
+    // ======================== Загрузка истории с сервера ========================
+
+    /**
+     * Загрузить последние 20 значений текущей сессии с сервера
+     */
+    public void loadHistoryFromServer(HistoryLoadCallback callback) {
+        // Пробуем через WebSocket
+        if (useWebSocket && socketManager.isConnected()) {
+            socketManager.requestHistory(history -> {
+                // Сохраняем в локальную БД
+                for (SensorData data : history) {
+                    historyRepository.insert(data);
+                }
+                if (callback != null) {
+                    callback.onHistoryLoaded(history);
+                }
+            });
+        } else {
+            // Fallback на HTTP
+            new Thread(() -> {
+                List<SensorData> history = repo.fetchHistory();
+                for (SensorData data : history) {
+                    historyRepository.insert(data);
+                }
+                handler.post(() -> {
+                    if (callback != null) {
+                        callback.onHistoryLoaded(history);
+                    }
+                });
+            }).start();
+        }
     }
 
-    // Отображение Toast с прерыванием предыдущего
+    public interface HistoryLoadCallback {
+        void onHistoryLoaded(List<SensorData> history);
+    }
+
+    // ======================== Очистка истории при смене сессии ========================
+
+    /**
+     * Очистить локальную историю (при обнаружении новой сессии)
+     */
+    public void clearLocalHistory() {
+        historyRepository.clearAll();
+    }
+
+    // ======================== Отправка настроек ========================
+
+    /**
+     * Отправить настройки на сервер (WebSocket приоритет)
+     */
+    public void sendSettings(int maxTemp, int minHum, int minLight, SettingsSendCallback callback) {
+        if (socketManager.isConnected()) {
+            socketManager.sendSettings(maxTemp, minHum, minLight);
+            // Сохраняем локально сразу — сервер пришлёт подтверждение через settings_update
+            saveSettings(getApplication(), maxTemp, minHum, minLight);
+            callback.onSettingsSent(true);
+        } else {
+            // Сервер недоступен — не пытаемся отправить, возвращаем ошибку
+            handler.post(() -> callback.onSettingsSent(false));
+        }
+    }
+
+    public interface SettingsSendCallback {
+        void onSettingsSent(boolean success);
+    }
+
+    // ======================== Получение последних значений ========================
+
+    public List<SensorData> getLastValues(int count) {
+        return historyRepository.getLastN(count);
+    }
+
+    // ======================== Утилиты ========================
+
     public static void showToast(Context context, String message) {
         if (currentToast != null) {
             currentToast.cancel();
@@ -137,50 +314,36 @@ public class SharedViewModel extends AndroidViewModel {
             int screenHeight = rootView.getRootView().getHeight();
             int visibleHeight = rootView.getHeight();
             int heightDiff = screenHeight - visibleHeight;
-
             boolean keyboardOpen = heightDiff > screenHeight * 0.25;
-
-            if (!keyboardOpen) {
-                if (editText.isFocused()) {
-                    editText.clearFocus();
-                }
+            if (!keyboardOpen && editText.isFocused()) {
+                editText.clearFocus();
             }
         });
     }
 
-    // Получение последних N значений из истории
-    public java.util.List<SensorData> getLastValues(int count) {
-        return historyRepository.getLastN(count);
-    }
+    // ======================== Тестовые данные ========================
 
-    // Тестирование графиков
     private final Handler testHandler = new Handler(Looper.getMainLooper());
     private Runnable testRunnable;
     private boolean isTestRunning = false;
-
-    // Запуск тестовой генерации данных
     private float lastTemp = 25f;
     private float lastHum = 50f;
     private float lastLight = 50f;
 
     public void startTestData() {
-        if (isTestRunning) return; // предотвращаем повторный запуск
+        if (isTestRunning) return;
         isTestRunning = true;
 
         testRunnable = new Runnable() {
             @Override
             public void run() {
-                // Генерация плавных данных
-                lastTemp = clamp(lastTemp + (float)(Math.random() * 4 - 2), 20f, 30f);  // ±2
-                lastHum = clamp(lastHum + (float)(Math.random() * 4 - 2), 30f, 70f);     // ±2
-                lastLight = clamp(lastLight + (float)(Math.random() * 4 - 2), 10f, 100f);// ±2
+                lastTemp = clamp(lastTemp + (float)(Math.random() * 4 - 2), 20f, 30f);
+                lastHum = clamp(lastHum + (float)(Math.random() * 4 - 2), 30f, 70f);
+                lastLight = clamp(lastLight + (float)(Math.random() * 4 - 2), 10f, 100f);
 
                 SensorData testData = new SensorData(lastTemp, lastHum, lastLight);
-
-                // Обновление LiveData
                 sensorData.postValue(testData);
 
-                // Планируем следующий запуск через 2 сек
                 if (isTestRunning) {
                     testHandler.postDelayed(this, 2000);
                 }
@@ -190,12 +353,6 @@ public class SharedViewModel extends AndroidViewModel {
         testHandler.post(testRunnable);
     }
 
-    // Вспомогательная функция для ограничения диапазона
-    private float clamp(float value, float min, float max) {
-        return Math.max(min, Math.min(max, value));
-    }
-
-    // Остановка тестовой генерации данных
     public void stopTestData() {
         isTestRunning = false;
         if (testRunnable != null) {
@@ -204,4 +361,15 @@ public class SharedViewModel extends AndroidViewModel {
         }
     }
 
+    private float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+        socketManager.disconnect();
+        stopAutoUpdate();
+        stopTestData();
+    }
 }

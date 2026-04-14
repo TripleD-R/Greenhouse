@@ -41,17 +41,14 @@ public class SetupFragment extends Fragment {
     }
 
     private void loadSavedSettings() {
-        // Получаем сохранённые значения
         int maxTemp = viewModel.getMaxTemp(requireContext());
         int minHum = viewModel.getMinHum(requireContext());
         int minLight = viewModel.getMinLight(requireContext());
 
-        // Приведение к допустимому диапазону
-        maxTemp = Math.max(0, Math.min(maxTemp, 50));       // диапазон 0-50
-        minHum = Math.max(0, Math.min(minHum, 100));        // диапазон 0-100%
-        minLight = Math.max(0, Math.min(minLight, 100));    // диапазон 0-100%
+        maxTemp = Math.max(0, Math.min(maxTemp, 50));
+        minHum = Math.max(0, Math.min(minHum, 100));
+        minLight = Math.max(0, Math.min(minLight, 100));
 
-        // Установка в EditText и Slider
         binding.edMaxTemp.setText(String.valueOf(maxTemp));
         binding.sliderMaxTemp.setValue(maxTemp);
 
@@ -62,17 +59,14 @@ public class SetupFragment extends Fragment {
         binding.sliderMinLight.setValue(minLight);
     }
 
-    // Настройка взаимной связи между ползунками и полями ввода
     private void setupSliders() {
         linkSliderAndEditText(binding.sliderMaxTemp, binding.edMaxTemp, binding.tvUnsavedMaxTemp, viewModel.getMaxTemp(requireContext()));
         linkSliderAndEditText(binding.sliderMinHum, binding.edMinHum, binding.tvUnsavedMinHum, viewModel.getMinHum(requireContext()));
         linkSliderAndEditText(binding.sliderMinLight, binding.edMinLight, binding.tvUnsavedMinLight, viewModel.getMinLight(requireContext()));
     }
 
-    // Двухсторонняя связка Slider и EditText
     private void linkSliderAndEditText(Slider slider, android.widget.EditText editText, View unsavedText, int savedValue) {
 
-        // Когда двигаем слайдер — обновляем EditText
         slider.addOnChangeListener((s, value, fromUser) -> {
             if (fromUser) {
                 int intValue = (int) value;
@@ -81,7 +75,6 @@ public class SetupFragment extends Fragment {
             }
         });
 
-        // Когда вводим вручную — обновляем слайдер + автокоррекция диапазона
         editText.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void afterTextChanged(Editable s) {}
@@ -95,11 +88,9 @@ public class SetupFragment extends Fragment {
                     int min = (int) slider.getValueFrom();
                     int max = (int) slider.getValueTo();
 
-                    // Автокоррекция значения
                     if (val < min) val = min;
                     if (val > max) val = max;
 
-                    // Если корректировали — переписываем текст
                     if (!s.toString().equals(String.valueOf(val))) {
                         editText.setText(String.valueOf(val));
                         editText.setSelection(editText.getText().length());
@@ -113,7 +104,7 @@ public class SetupFragment extends Fragment {
         });
     }
 
-    // Кнопка "Применить"
+    // Кнопка "Применить" — отправка настроек на сервер
     private void setupApplyButton() {
         binding.bApply.setOnClickListener(v -> {
             String maxTempStr = binding.edMaxTemp.getText().toString();
@@ -129,32 +120,23 @@ public class SetupFragment extends Fragment {
             int minHum = Integer.parseInt(minHumStr);
             int minLight = Integer.parseInt(minLightStr);
 
-            String ip = viewModel.getSavedIp(requireContext());
-            if (ip.isEmpty()) {
-                SharedViewModel.showToast(requireContext(), "IP не задан");
-                return;
-            }
-
-            new Thread(() -> {
-                String response = viewModel.sendSettings(ip, maxTemp, minHum, minLight);
+            // Отправляем настройки через ViewModel (WebSocket приоритет)
+            viewModel.sendSettings(maxTemp, minHum, minLight, success -> {
                 requireActivity().runOnUiThread(() -> {
-                    if (response != null) {
-                        viewModel.saveSettings(requireContext(), maxTemp, minHum, minLight);
-                        SharedViewModel.showToast(requireContext(), "Настройки применены");
+                    if (success) {
+                        SharedViewModel.showToast(requireContext(), "Настройки обновлены");
 
-                        // Скрытие предупреждений
                         binding.tvUnsavedMaxTemp.setVisibility(View.GONE);
                         binding.tvUnsavedMinHum.setVisibility(View.GONE);
                         binding.tvUnsavedMinLight.setVisibility(View.GONE);
                     } else {
-                        SharedViewModel.showToast(requireContext(), "Ошибка при отправке");
+                        SharedViewModel.showToast(requireContext(), "Нет подключения к серверу");
                     }
                 });
-            }).start();
+            });
         });
     }
 
-    // Кнопка сброса
     private void setupResetButton() {
         binding.bResetSetup.setOnClickListener(v -> {
             loadSavedSettings();

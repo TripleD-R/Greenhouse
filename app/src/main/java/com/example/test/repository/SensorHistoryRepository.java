@@ -84,4 +84,11 @@ public class SensorHistoryRepository {
         db.close();
         return list;
     }
+
+    // ====================== Очистка всей истории ======================
+    public void clearAll() {
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        db.delete(SensorDatabaseHelper.TABLE_HISTORY, null, null);
+        db.close();
+    }
 }
