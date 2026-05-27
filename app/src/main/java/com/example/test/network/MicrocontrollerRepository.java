@@ -1,6 +1,7 @@
 package com.example.test.network;
 
 import com.example.test.model.SensorData;
+import com.example.test.model.SessionItem;
 import okhttp3.*;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -27,9 +28,9 @@ public class MicrocontrollerRepository {
                 JSONArray array = new JSONArray(json);
                 if (array.length() > 0) {
                     JSONObject obj = array.getJSONObject(array.length() - 1);
-                    float temp = (float) obj.getDouble("temperature");
-                    float hum = (float) obj.getDouble("humidity");
-                    float light = (float) obj.getDouble("light");
+                    float temp = (float) obj.optDouble("temperature", 0);
+                    float hum = (float) obj.optDouble("humidity", 0);
+                    float light = (float) obj.optDouble("light", 0);
                     return new SensorData(temp, hum, light);
                 }
             }
@@ -52,9 +53,64 @@ public class MicrocontrollerRepository {
                 JSONArray array = new JSONArray(json);
                 for (int i = 0; i < array.length(); i++) {
                     JSONObject obj = array.getJSONObject(i);
-                    float temp = (float) obj.getDouble("temperature");
-                    float hum = (float) obj.getDouble("humidity");
-                    float light = (float) obj.getDouble("light");
+                    float temp = (float) obj.optDouble("temperature", 0);
+                    float hum = (float) obj.optDouble("humidity", 0);
+                    float light = (float) obj.optDouble("light", 0);
+                    list.add(new SensorData(temp, hum, light));
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
+    // Получение списка всех сессий
+    public java.util.List<com.example.test.model.SessionItem> fetchSessions() {
+        Request request = new Request.Builder()
+                .url(API_URL + "/sessions")
+                .build();
+
+        List<com.example.test.model.SessionItem> sessions = new java.util.ArrayList<>();
+        try (Response response = client.newCall(request).execute()) {
+            if (response.isSuccessful() && response.body() != null) {
+                String json = response.body().string();
+                JSONArray array = new JSONArray(json);
+                for (int i = 0; i < array.length(); i++) {
+                    JSONObject obj = array.getJSONObject(i);
+                    SessionItem session = new SessionItem(
+                            obj.optInt("id", -1),
+                            obj.optString("status", ""),
+                            obj.optString("device_ip", ""),
+                            obj.optString("start_time", ""),
+                            obj.optString("end_time", ""),
+                            obj.optInt("data_count", 0)
+                    );
+                    sessions.add(session);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return sessions;
+    }
+
+    // Получение данных по конкретной сессии
+    public List<SensorData> fetchSessionData(int sessionId) {
+        Request request = new Request.Builder()
+                .url(API_URL + "/sessions/" + sessionId + "/data")
+                .build();
+
+        List<SensorData> list = new ArrayList<>();
+        try (Response response = client.newCall(request).execute()) {
+            if (response.isSuccessful() && response.body() != null) {
+                String json = response.body().string();
+                JSONArray array = new JSONArray(json);
+                for (int i = 0; i < array.length(); i++) {
+                    JSONObject obj = array.getJSONObject(i);
+                    float temp = (float) obj.optDouble("temperature", 0);
+                    float hum = (float) obj.optDouble("humidity", 0);
+                    float light = (float) obj.optDouble("light", 0);
                     list.add(new SensorData(temp, hum, light));
                 }
             }

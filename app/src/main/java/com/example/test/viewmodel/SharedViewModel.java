@@ -15,6 +15,7 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
 import com.example.test.model.SensorData;
+import com.example.test.model.SessionItem;
 import com.example.test.network.MicrocontrollerRepository;
 import com.example.test.network.SocketManager;
 import com.example.test.repository.SensorHistoryRepository;
@@ -35,6 +36,14 @@ public class SharedViewModel extends AndroidViewModel {
     private final MutableLiveData<SensorData> sensorData = new MutableLiveData<>();
     private final MutableLiveData<Boolean> isConnected = new MutableLiveData<>(false);
     private final MutableLiveData<String> connectionStatus = new MutableLiveData<>("Не подключено");
+
+    private final MutableLiveData<Integer> maxTempLive = new MutableLiveData<>(25);
+    private final MutableLiveData<Integer> minHumLive = new MutableLiveData<>(40);
+    private final MutableLiveData<Integer> minLightLive = new MutableLiveData<>(30);
+
+    private final MutableLiveData<Long> sessionStarted = new MutableLiveData<>();
+    private final MutableLiveData<Long> sessionEnded = new MutableLiveData<>();
+    private final MutableLiveData<Integer> activeSessionId = new MutableLiveData<>();
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private Runnable updateRunnable;
@@ -75,6 +84,9 @@ public class SharedViewModel extends AndroidViewModel {
             currentMaxTemp = maxTemp;
             currentMinHum = minHum;
             currentMinLight = minLight;
+            maxTempLive.postValue(maxTemp);
+            minHumLive.postValue(minHum);
+            minLightLive.postValue(minLight);
             // Не показываем тост здесь — он уже показан при отправке настроек
             // showToast(getApplication(), "Настройки обновлены");
         });
@@ -107,6 +119,21 @@ public class SharedViewModel extends AndroidViewModel {
                 useWebSocket = false;
             }
         });
+
+        socketManager.setSessionListener(new SocketManager.SessionListener() {
+            @Override
+            public void onSessionStarted(int sessionId, String startTime) {
+                clearLocalHistory();
+                sessionStarted.postValue(System.currentTimeMillis());
+                activeSessionId.postValue(sessionId);
+            }
+
+            @Override
+            public void onSessionEnded(int sessionId, String endTime) {
+                sessionEnded.postValue(System.currentTimeMillis());
+                activeSessionId.postValue(null);
+            }
+        });
     }
 
     // ======================== Настройки ========================
@@ -121,6 +148,9 @@ public class SharedViewModel extends AndroidViewModel {
         currentMaxTemp = maxTemp;
         currentMinHum = minHum;
         currentMinLight = minLight;
+        maxTempLive.postValue(maxTemp);
+        minHumLive.postValue(minHum);
+        minLightLive.postValue(minLight);
     }
 
     public int getMaxTemp(Context context) {
@@ -142,6 +172,10 @@ public class SharedViewModel extends AndroidViewModel {
     public int getCurrentMinHum() { return currentMinHum; }
     public int getCurrentMinLight() { return currentMinLight; }
 
+    public LiveData<Integer> getMaxTempLive() { return maxTempLive; }
+    public LiveData<Integer> getMinHumLive() { return minHumLive; }
+    public LiveData<Integer> getMinLightLive() { return minLightLive; }
+
     // ======================== LiveData ========================
 
     public LiveData<SensorData> getSensorData() {
@@ -154,6 +188,18 @@ public class SharedViewModel extends AndroidViewModel {
 
     public LiveData<String> getConnectionStatus() {
         return connectionStatus;
+    }
+
+    public LiveData<Long> getSessionStarted() {
+        return sessionStarted;
+    }
+
+    public LiveData<Long> getSessionEnded() {
+        return sessionEnded;
+    }
+
+    public LiveData<Integer> getActiveSessionId() {
+        return activeSessionId;
     }
 
     // ======================== Подключение к серверу ========================
@@ -231,6 +277,39 @@ public class SharedViewModel extends AndroidViewModel {
     /**
      * Загрузить последние 20 значений текущей сессии с сервера
      */
+    public void loadCurrentSessionFromServer(HistoryLoadCallback callback) {
+        Integer sessionId = activeSessionId.getValue();
+        if (sessionId != null && sessionId > 0) {
+            loadSessionDataFromServer(sessionId, callback);
+            return;
+        }
+
+        if (useWebSocket && socketManager.isConnected()) {
+            socketManager.requestHistory(history -> {
+                // Сохраняем в локальную БД
+                for (SensorData data : history) {
+                    historyRepository.insert(data);
+                }
+                if (callback != null) {
+                    callback.onHistoryLoaded(history);
+                }
+            });
+        } else {
+            // Fallback на HTTP
+            new Thread(() -> {
+                List<SensorData> history = repo.fetchHistory();
+                for (SensorData data : history) {
+                    historyRepository.insert(data);
+                }
+                handler.post(() -> {
+                    if (callback != null) {
+                        callback.onHistoryLoaded(history);
+                    }
+                });
+            }).start();
+        }
+    }
+
     public void loadHistoryFromServer(HistoryLoadCallback callback) {
         // Пробуем через WebSocket
         if (useWebSocket && socketManager.isConnected()) {
@@ -261,6 +340,28 @@ public class SharedViewModel extends AndroidViewModel {
 
     public interface HistoryLoadCallback {
         void onHistoryLoaded(List<SensorData> history);
+    }
+
+    public void loadSessionsFromServer(SessionsLoadCallback callback) {
+        new Thread(() -> {
+            List<SessionItem> sessions = repo.fetchSessions();
+            handler.post(() -> {
+                if (callback != null) callback.onSessionsLoaded(sessions);
+            });
+        }).start();
+    }
+
+    public void loadSessionDataFromServer(int sessionId, HistoryLoadCallback callback) {
+        new Thread(() -> {
+            List<SensorData> history = repo.fetchSessionData(sessionId);
+            handler.post(() -> {
+                if (callback != null) callback.onHistoryLoaded(history);
+            });
+        }).start();
+    }
+
+    public interface SessionsLoadCallback {
+        void onSessionsLoaded(List<SessionItem> sessions);
     }
 
     // ======================== Очистка истории при смене сессии ========================

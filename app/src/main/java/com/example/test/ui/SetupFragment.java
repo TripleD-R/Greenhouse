@@ -32,6 +32,7 @@ public class SetupFragment extends Fragment {
         viewModel.clearFocusOnKeyboardClose(requireContext(), binding.getRoot(), binding.edMinHum);
         viewModel.clearFocusOnKeyboardClose(requireContext(), binding.getRoot(), binding.edMinLight);
 
+        observeSettingsUpdates();
         loadSavedSettings();
         setupSliders();
         setupApplyButton();
@@ -45,6 +46,28 @@ public class SetupFragment extends Fragment {
         int minHum = viewModel.getMinHum(requireContext());
         int minLight = viewModel.getMinLight(requireContext());
 
+        updateSettingsFields(maxTemp, minHum, minLight);
+    }
+
+    private void observeSettingsUpdates() {
+        viewModel.getMaxTempLive().observe(getViewLifecycleOwner(), value -> {
+            if (value != null) {
+                updateSettingsFields(value, viewModel.getCurrentMinHum(), viewModel.getCurrentMinLight());
+            }
+        });
+        viewModel.getMinHumLive().observe(getViewLifecycleOwner(), value -> {
+            if (value != null) {
+                updateSettingsFields(viewModel.getCurrentMaxTemp(), value, viewModel.getCurrentMinLight());
+            }
+        });
+        viewModel.getMinLightLive().observe(getViewLifecycleOwner(), value -> {
+            if (value != null) {
+                updateSettingsFields(viewModel.getCurrentMaxTemp(), viewModel.getCurrentMinHum(), value);
+            }
+        });
+    }
+
+    private void updateSettingsFields(int maxTemp, int minHum, int minLight) {
         maxTemp = Math.max(0, Math.min(maxTemp, 50));
         minHum = Math.max(0, Math.min(minHum, 100));
         minLight = Math.max(0, Math.min(minLight, 100));
@@ -57,6 +80,10 @@ public class SetupFragment extends Fragment {
 
         binding.edMinLight.setText(String.valueOf(minLight));
         binding.sliderMinLight.setValue(minLight);
+
+        binding.tvUnsavedMaxTemp.setVisibility(View.GONE);
+        binding.tvUnsavedMinHum.setVisibility(View.GONE);
+        binding.tvUnsavedMinLight.setVisibility(View.GONE);
     }
 
     private void setupSliders() {

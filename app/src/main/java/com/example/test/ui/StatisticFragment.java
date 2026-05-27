@@ -18,9 +18,16 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import com.example.test.databinding.FragmentStatisticBinding;
+import androidx.appcompat.app.AlertDialog;
+
+import com.example.test.model.SessionItem;
 import com.example.test.viewmodel.SharedViewModel;
 
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 public class StatisticFragment extends Fragment {
 
@@ -37,6 +44,8 @@ public class StatisticFragment extends Fragment {
     private LineData lightLineData;
 
     private int maxPoints = 20;
+    private int currentMaxPoints = 20;  // Текущий лимит точек (меняется в зависимости от режима)
+    private boolean isHistoryMode = false;  // Флаг: режим истории (без движения графика)
 
     @Nullable
     @Override
@@ -55,6 +64,9 @@ public class StatisticFragment extends Fragment {
         // Загрузка последних значений из локальной БД (кэш)
         loadLocalHistory();
 
+        // Настройка кнопки списка сессий
+        setupSessionControls();
+
         // Загрузка истории с сервера (актуальные данные текущей сессии)
         loadServerHistory();
 
@@ -62,14 +74,29 @@ public class StatisticFragment extends Fragment {
         viewModel.getSensorData().observe(getViewLifecycleOwner(), data -> {
             if (data != null) {
                 // Обновление текстовых значений
+                // Обновляем текстовые значения всегда
                 binding.tvTemp.setText(String.format("%.1f °C", data.getTemperature()));
                 binding.tvHum.setText(String.format("%.1f %%", data.getHumidity()));
                 binding.tvLight.setText(String.format("%.1f %%", data.getLight()));
 
-                // Добавление точек в графики
-                addTempPoint(data.getTemperature());
-                addHumPoint(data.getHumidity());
-                addLightPoint(data.getLight());
+                // В режиме истории не добавляем живые точки (чтобы не мешать просмотру выбранной сессии)
+                if (!isHistoryMode) {
+                    addTempPoint(data.getTemperature());
+                    addHumPoint(data.getHumidity());
+                    addLightPoint(data.getLight());
+                }
+            }
+        });
+
+        viewModel.getSessionStarted().observe(getViewLifecycleOwner(), timestamp -> {
+            if (timestamp != null) {
+                loadCurrentSession();
+            }
+        });
+
+        viewModel.getSessionEnded().observe(getViewLifecycleOwner(), timestamp -> {
+            if (timestamp != null) {
+                binding.tvSessionInfo.setText("Сессия завершена");
             }
         });
 
@@ -94,26 +121,99 @@ public class StatisticFragment extends Fragment {
      * данные прошлой и текущей сессии.
      */
     private void loadServerHistory() {
-        viewModel.loadHistoryFromServer(history -> {
-            // Очищаем графики и заполняем данными с сервера
-            requireActivity().runOnUiThread(() -> {
-                clearCharts();
+        loadCurrentSession();
+    }
 
-                for (SensorData data : history) {
-                    addTempPoint(data.getTemperature());
-                    addHumPoint(data.getHumidity());
-                    addLightPoint(data.getLight());
-                }
+    private void setupSessionControls() {
+        binding.btnSessionHistory.setOnClickListener(v -> loadSessionsFromServer());
+        binding.btnCurrentSession.setOnClickListener(v -> loadCurrentSession());
+    }
 
-                // Обновляем текстовые значения последним элементом
-                if (!history.isEmpty()) {
-                    SensorData last = history.get(history.size() - 1);
-                    binding.tvTemp.setText(String.format("%.1f °C", last.getTemperature()));
-                    binding.tvHum.setText(String.format("%.1f %%", last.getHumidity()));
-                    binding.tvLight.setText(String.format("%.1f %%", last.getLight()));
-                }
-            });
+    private void loadCurrentSession() {
+        isHistoryMode = false;
+        currentMaxPoints = maxPoints;
+        binding.tvSessionInfo.setText("Текущая сессия");
+        clearCharts();
+
+        viewModel.loadCurrentSessionFromServer(history -> requireActivity().runOnUiThread(() -> {
+            clearCharts();
+            for (SensorData data : history) {
+                addTempPoint(data.getTemperature());
+                addHumPoint(data.getHumidity());
+                addLightPoint(data.getLight());
+            }
+            if (!history.isEmpty()) {
+                SensorData last = history.get(history.size() - 1);
+                binding.tvTemp.setText(String.format("%.1f °C", last.getTemperature()));
+                binding.tvHum.setText(String.format("%.1f %%", last.getHumidity()));
+                binding.tvLight.setText(String.format("%.1f %%", last.getLight()));
+            }
+        }));
+    }
+
+    private void loadSessionsFromServer() {
+        viewModel.loadSessionsFromServer(sessions -> requireActivity().runOnUiThread(() -> {
+            if (sessions.isEmpty()) {
+                binding.tvSessionInfo.setText("История сессий отсутствует");
+                return;
+            }
+            showSessionsDialog(sessions);
+        }));
+    }
+
+    private void showSessionsDialog(List<SessionItem> sessions) {
+        List<String> titles = new ArrayList<>();
+
+        for (SessionItem session : sessions) {
+            String startStr = formatSessionTime(session.getStartTime());
+            String endStr = session.getEndTime().isEmpty() ? "В процессе" : formatSessionTime(session.getEndTime());
+            titles.add(String.format("Сессия %d: %s",
+                    session.getId(), startStr));
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
+        builder.setTitle("Выберите сессию");
+        builder.setItems(titles.toArray(new String[0]), (dialog, which) -> {
+            SessionItem session = sessions.get(which);
+            String startStr = formatSessionTime(session.getStartTime());
+            String endStr = session.getEndTime().isEmpty() ? "В процессе" : formatSessionTime(session.getEndTime());
+            String title = String.format("Сессия %d: %s → %s", session.getId(), startStr, endStr);
+            loadSessionDataById(session.getId(), title);
         });
+        builder.setNegativeButton("Отмена", null);
+        builder.show();
+    }
+
+    private String formatSessionTime(String isoDateTime) {
+        try {
+            // Входной формат: "2026-05-27T11:31:45.123Z" или похожий
+            SimpleDateFormat isoFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault());
+            Date date = isoFormat.parse(isoDateTime.split("\\.")[0]); // Убираем миллисекунды
+            SimpleDateFormat outputFormat = new SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault());
+            return outputFormat.format(date);
+        } catch (Exception e) {
+            return isoDateTime; // Возвращаем оригинальное значение если ошибка парсинга
+        }
+    }
+
+    private void loadSessionDataById(int sessionId, String sessionInfo) {
+        isHistoryMode = true;  // Включаем режим истории (без движения графика)
+        currentMaxPoints = 10000;  // Большое число для отображения всех точек сессии
+        viewModel.loadSessionDataFromServer(sessionId, history -> requireActivity().runOnUiThread(() -> {
+            clearCharts();
+            for (SensorData data : history) {
+                addTempPointNoLimit(data.getTemperature());
+                addHumPointNoLimit(data.getHumidity());
+                addLightPointNoLimit(data.getLight());
+            }
+            if (!history.isEmpty()) {
+                SensorData last = history.get(history.size() - 1);
+                binding.tvTemp.setText(String.format("%.1f °C", last.getTemperature()));
+                binding.tvHum.setText(String.format("%.1f %%", last.getHumidity()));
+                binding.tvLight.setText(String.format("%.1f %%", last.getLight()));
+            }
+            binding.tvSessionInfo.setText(sessionInfo);
+        }));
     }
 
     // График температуры
@@ -145,15 +245,25 @@ public class StatisticFragment extends Fragment {
     private void addTempPoint(float value) {
         tempDataSet.addEntry(new Entry(tempDataSet.getEntryCount(), value));
 
-        if (tempDataSet.getEntryCount() > maxPoints) {
+        if (tempDataSet.getEntryCount() > currentMaxPoints) {
             tempDataSet.removeFirst();
             reindex(tempDataSet);
         }
 
         tempLineData.notifyDataChanged();
         binding.chartTemp.notifyDataSetChanged();
+        binding.chartTemp.invalidate();
         binding.chartTemp.setVisibleXRangeMaximum(maxPoints);
-        binding.chartTemp.moveViewToX(tempDataSet.getEntryCount());
+        if (!isHistoryMode) {
+            binding.chartTemp.moveViewToX(tempDataSet.getEntryCount());
+        }
+    }
+
+    private void addTempPointNoLimit(float value) {
+        tempDataSet.addEntry(new Entry(tempDataSet.getEntryCount(), value));
+        tempLineData.notifyDataChanged();
+        binding.chartTemp.notifyDataSetChanged();
+        binding.chartTemp.invalidate();
     }
 
     // График влажности
@@ -185,15 +295,25 @@ public class StatisticFragment extends Fragment {
     private void addHumPoint(float value) {
         humDataSet.addEntry(new Entry(humDataSet.getEntryCount(), value));
 
-        if (humDataSet.getEntryCount() > maxPoints) {
+        if (humDataSet.getEntryCount() > currentMaxPoints) {
             humDataSet.removeFirst();
             reindex(humDataSet);
         }
 
         humLineData.notifyDataChanged();
         binding.chartHum.notifyDataSetChanged();
+        binding.chartHum.invalidate();
         binding.chartHum.setVisibleXRangeMaximum(maxPoints);
-        binding.chartHum.moveViewToX(humDataSet.getEntryCount());
+        if (!isHistoryMode) {
+            binding.chartHum.moveViewToX(humDataSet.getEntryCount());
+        }
+    }
+
+    private void addHumPointNoLimit(float value) {
+        humDataSet.addEntry(new Entry(humDataSet.getEntryCount(), value));
+        humLineData.notifyDataChanged();
+        binding.chartHum.notifyDataSetChanged();
+        binding.chartHum.invalidate();
     }
 
     // График освещённости
@@ -225,15 +345,25 @@ public class StatisticFragment extends Fragment {
     private void addLightPoint(float value) {
         lightDataSet.addEntry(new Entry(lightDataSet.getEntryCount(), value));
 
-        if (lightDataSet.getEntryCount() > maxPoints) {
+        if (lightDataSet.getEntryCount() > currentMaxPoints) {
             lightDataSet.removeFirst();
             reindex(lightDataSet);
         }
 
         lightLineData.notifyDataChanged();
         binding.chartLight.notifyDataSetChanged();
+        binding.chartLight.invalidate();
         binding.chartLight.setVisibleXRangeMaximum(maxPoints);
-        binding.chartLight.moveViewToX(lightDataSet.getEntryCount());
+        if (!isHistoryMode) {
+            binding.chartLight.moveViewToX(lightDataSet.getEntryCount());
+        }
+    }
+
+    private void addLightPointNoLimit(float value) {
+        lightDataSet.addEntry(new Entry(lightDataSet.getEntryCount(), value));
+        lightLineData.notifyDataChanged();
+        binding.chartLight.notifyDataSetChanged();
+        binding.chartLight.invalidate();
     }
 
     private void reindex(LineDataSet set) {
@@ -248,18 +378,24 @@ public class StatisticFragment extends Fragment {
     private void clearCharts() {
         if (tempDataSet != null) {
             tempDataSet.clear();
-            tempLineData.notifyDataChanged();
+            tempLineData = new LineData(tempDataSet);
+            binding.chartTemp.setData(tempLineData);
             binding.chartTemp.notifyDataSetChanged();
+            binding.chartTemp.invalidate();
         }
         if (humDataSet != null) {
             humDataSet.clear();
-            humLineData.notifyDataChanged();
+            humLineData = new LineData(humDataSet);
+            binding.chartHum.setData(humLineData);
             binding.chartHum.notifyDataSetChanged();
+            binding.chartHum.invalidate();
         }
         if (lightDataSet != null) {
             lightDataSet.clear();
-            lightLineData.notifyDataChanged();
+            lightLineData = new LineData(lightDataSet);
+            binding.chartLight.setData(lightLineData);
             binding.chartLight.notifyDataSetChanged();
+            binding.chartLight.invalidate();
         }
     }
 
