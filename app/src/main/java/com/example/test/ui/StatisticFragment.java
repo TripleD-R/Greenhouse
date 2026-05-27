@@ -73,14 +73,12 @@ public class StatisticFragment extends Fragment {
         // Наблюдение за поступающими данными (WebSocket или polling)
         viewModel.getSensorData().observe(getViewLifecycleOwner(), data -> {
             if (data != null) {
-                // Обновление текстовых значений
-                // Обновляем текстовые значения всегда
-                binding.tvTemp.setText(String.format("%.1f °C", data.getTemperature()));
-                binding.tvHum.setText(String.format("%.1f %%", data.getHumidity()));
-                binding.tvLight.setText(String.format("%.1f %%", data.getLight()));
-
-                // В режиме истории не добавляем живые точки (чтобы не мешать просмотру выбранной сессии)
+                // В режиме истории не показываем числовые показатели и не добавляем live-точки
                 if (!isHistoryMode) {
+                    binding.tvTemp.setText(String.format("%.1f °C", data.getTemperature()));
+                    binding.tvHum.setText(String.format("%.1f %%", data.getHumidity()));
+                    binding.tvLight.setText(String.format("%.1f %%", data.getLight()));
+
                     addTempPoint(data.getTemperature());
                     addHumPoint(data.getHumidity());
                     addLightPoint(data.getLight());
@@ -132,7 +130,7 @@ public class StatisticFragment extends Fragment {
     private void loadCurrentSession() {
         isHistoryMode = false;
         currentMaxPoints = maxPoints;
-        binding.tvSessionInfo.setText("Текущая сессия");
+        binding.tvSessionInfo.setText("Текущая\nсессия");
         clearCharts();
 
         viewModel.loadCurrentSessionFromServer(history -> requireActivity().runOnUiThread(() -> {
@@ -148,6 +146,27 @@ public class StatisticFragment extends Fragment {
                 binding.tvHum.setText(String.format("%.1f %%", last.getHumidity()));
                 binding.tvLight.setText(String.format("%.1f %%", last.getLight()));
             }
+            // После загрузки текущей сессии — привести графики в состояние "как при старте приложения"
+            binding.chartTemp.fitScreen();
+            binding.chartHum.fitScreen();
+            binding.chartLight.fitScreen();
+
+            if (tempDataSet != null) {
+                binding.chartTemp.setVisibleXRangeMaximum(maxPoints);
+                binding.chartTemp.moveViewToX(Math.max(0, tempDataSet.getEntryCount() - 1));
+            }
+            if (humDataSet != null) {
+                binding.chartHum.setVisibleXRangeMaximum(maxPoints);
+                binding.chartHum.moveViewToX(Math.max(0, humDataSet.getEntryCount() - 1));
+            }
+            if (lightDataSet != null) {
+                binding.chartLight.setVisibleXRangeMaximum(maxPoints);
+                binding.chartLight.moveViewToX(Math.max(0, lightDataSet.getEntryCount() - 1));
+            }
+
+            binding.chartTemp.invalidate();
+            binding.chartHum.invalidate();
+            binding.chartLight.invalidate();
         }));
     }
 
@@ -165,19 +184,19 @@ public class StatisticFragment extends Fragment {
         List<String> titles = new ArrayList<>();
 
         for (SessionItem session : sessions) {
-            String startStr = formatSessionTime(session.getStartTime());
-            String endStr = session.getEndTime().isEmpty() ? "В процессе" : formatSessionTime(session.getEndTime());
-            titles.add(String.format("Сессия %d: %s",
-                    session.getId(), startStr));
+            String time = formatSessionTime(session.getStartTime());
+            titles.add(String.format("Сессия %d - %s", session.getId(), time));
         }
 
         AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
         builder.setTitle("Выберите сессию");
         builder.setItems(titles.toArray(new String[0]), (dialog, which) -> {
             SessionItem session = sessions.get(which);
-            String startStr = formatSessionTime(session.getStartTime());
-            String endStr = session.getEndTime().isEmpty() ? "В процессе" : formatSessionTime(session.getEndTime());
-            String title = String.format("Сессия %d: %s → %s", session.getId(), startStr, endStr);
+            String title = String.format("Сессия %d", session.getId());
+            // Скрываем числовые показатели при просмотре истории
+            binding.tvTemp.setText("");
+            binding.tvHum.setText("");
+            binding.tvLight.setText("");
             loadSessionDataById(session.getId(), title);
         });
         builder.setNegativeButton("Отмена", null);
@@ -199,6 +218,10 @@ public class StatisticFragment extends Fragment {
     private void loadSessionDataById(int sessionId, String sessionInfo) {
         isHistoryMode = true;  // Включаем режим истории (без движения графика)
         currentMaxPoints = 10000;  // Большое число для отображения всех точек сессии
+        // Дополнительно очищаем числовые поля на случай, если они ещё заполнены
+        binding.tvTemp.setText("");
+        binding.tvHum.setText("");
+        binding.tvLight.setText("");
         viewModel.loadSessionDataFromServer(sessionId, history -> requireActivity().runOnUiThread(() -> {
             clearCharts();
             for (SensorData data : history) {
@@ -207,10 +230,8 @@ public class StatisticFragment extends Fragment {
                 addLightPointNoLimit(data.getLight());
             }
             if (!history.isEmpty()) {
-                SensorData last = history.get(history.size() - 1);
-                binding.tvTemp.setText(String.format("%.1f °C", last.getTemperature()));
-                binding.tvHum.setText(String.format("%.1f %%", last.getHumidity()));
-                binding.tvLight.setText(String.format("%.1f %%", last.getLight()));
+                // В режиме истории не показываем числовые значения
+                // (они были очищены при выборе сессии)
             }
             binding.tvSessionInfo.setText(sessionInfo);
         }));
@@ -228,6 +249,13 @@ public class StatisticFragment extends Fragment {
 
         tempLineData = new LineData(tempDataSet);
         chart.setData(tempLineData);
+        // Отключаем реакцию графика на касания/зум/перетаскивание
+        chart.setTouchEnabled(false);
+        chart.setDragEnabled(false);
+        chart.setScaleEnabled(false);
+        chart.setPinchZoom(false);
+        chart.setDoubleTapToZoomEnabled(false);
+        chart.setHighlightPerTapEnabled(false);
 
         chart.getDescription().setEnabled(false);
         chart.getLegend().setEnabled(false);
@@ -278,6 +306,13 @@ public class StatisticFragment extends Fragment {
 
         humLineData = new LineData(humDataSet);
         chart.setData(humLineData);
+        // Отключаем реакцию графика на касания/зум/перетаскивание
+        chart.setTouchEnabled(false);
+        chart.setDragEnabled(false);
+        chart.setScaleEnabled(false);
+        chart.setPinchZoom(false);
+        chart.setDoubleTapToZoomEnabled(false);
+        chart.setHighlightPerTapEnabled(false);
 
         chart.getDescription().setEnabled(false);
         chart.getLegend().setEnabled(false);
@@ -328,6 +363,13 @@ public class StatisticFragment extends Fragment {
 
         lightLineData = new LineData(lightDataSet);
         chart.setData(lightLineData);
+        // Отключаем реакцию графика на касания/зум/перетаскивание
+        chart.setTouchEnabled(false);
+        chart.setDragEnabled(false);
+        chart.setScaleEnabled(false);
+        chart.setPinchZoom(false);
+        chart.setDoubleTapToZoomEnabled(false);
+        chart.setHighlightPerTapEnabled(false);
 
         chart.getDescription().setEnabled(false);
         chart.getLegend().setEnabled(false);

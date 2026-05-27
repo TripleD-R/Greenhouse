@@ -2,45 +2,68 @@
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+<!--    <Button-->
+<!--        android:id="@+id/bApply"-->
+<!--        android:layout_width="0dp"-->
+<!--        android:layout_height="60dp"-->
+<!--        android:layout_marginTop="24dp"-->
+<!--        android:layout_marginEnd="16dp"-->
+<!--        android:text="Применить"-->
+<!--        android:textColor="#FFFFFF"-->
+<!--        android:theme="@style/btn_rounded"-->
+<!--        app:cornerRadius="24dp" />-->
+
     <Button
         android:id="@+id/btnSessionHistory"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="0dp"
+        android:layout_height="60dp"
+        android:layout_marginTop="24dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="8dp"
         android:text="История"
         android:textAllCaps="false"
-        android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"
+        android:textColor="#FFFFFF"
+        android:theme="@style/btn_rounded"
+        app:cornerRadius="24dp"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"/>
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/btnCurrentSession"/>
 
     <Button
         android:id="@+id/btnCurrentSession"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="0dp"
+        android:layout_height="60dp"
+        android:layout_marginStart="4dp"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="16dp"
         android:text="Текущая сессия"
         android:textAllCaps="false"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="16dp"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toEndOf="@id/btnSessionHistory"/>
+        android:textColor="#FFFFFF"
+        android:theme="@style/btn_rounded"
+        app:cornerRadius="24dp"
+        app:layout_constraintEnd_toStartOf="@id/tvSessionInfo"
+        app:layout_constraintStart_toEndOf="@id/btnSessionHistory"
+        app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- Температура -->
     <TextView
         android:id="@+id/tvSessionInfo"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="Текущая сессия"
-        android:textSize="14sp"
+        android:gravity="center_horizontal"
+        android:maxLines="2"
+        android:text="Текущая\nсессия"
         android:textColor="#333333"
-        android:layout_marginEnd="16dp"
-        app:layout_constraintTop_toTopOf="parent"
+        android:textSize="14sp"
+        app:layout_constraintBottom_toBottomOf="@+id/btnCurrentSession"
+        app:layout_constraintEnd_toEndOf="@+id/panelTemp"
         app:layout_constraintStart_toEndOf="@id/btnCurrentSession"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBaseline_toBaselineOf="@id/btnCurrentSession"/>
+        app:layout_constraintTop_toTopOf="@+id/btnCurrentSession" />
 
-    <!-- Температура -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/panelTemp"
         android:layout_width="0dp"
@@ -54,7 +77,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHeight_default="percent"
-        app:layout_constraintHeight_percent="0.30">
+        app:layout_constraintHeight_percent="0.25">
 
         <TextView
             android:id="@+id/tvTemp"
@@ -83,35 +106,37 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
         android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
         android:background="@drawable/nav_background"
         android:padding="16dp"
-        app:layout_constraintTop_toBottomOf="@id/panelTemp"
-        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/panelLight"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHeight_default="percent"
-        app:layout_constraintHeight_percent="0.30">
+        app:layout_constraintHeight_percent="0.25"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/panelTemp">
 
         <TextView
             android:id="@+id/tvHum"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Влажность: 0%"
-            android:textSize="16sp"
             android:textColor="#2196F3"
+            android:textSize="16sp"
             android:textStyle="bold"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintStart_toStartOf="parent"/>
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <com.github.mikephil.charting.charts.LineChart
             android:id="@+id/chartHum"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            app:layout_constraintTop_toBottomOf="@id/tvHum"
             app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"/>
+            app:layout_constraintTop_toBottomOf="@id/tvHum" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <!-- Освещённость -->
@@ -121,36 +146,34 @@
         android:layout_height="0dp"
         android:layout_marginStart="16dp"
         android:layout_marginEnd="16dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginBottom="16dp"
+        android:layout_marginBottom="24dp"
         android:background="@drawable/nav_background"
         android:padding="16dp"
-        app:layout_constraintTop_toBottomOf="@id/panelHum"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHeight_default="percent"
-        app:layout_constraintHeight_percent="0.30">
+        app:layout_constraintHeight_percent="0.25"
+        app:layout_constraintStart_toStartOf="parent">
 
         <TextView
             android:id="@+id/tvLight"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Свет: 0%"
-            android:textSize="16sp"
             android:textColor="#DBCB16"
+            android:textSize="16sp"
             android:textStyle="bold"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintStart_toStartOf="parent"/>
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <com.github.mikephil.charting.charts.LineChart
             android:id="@+id/chartLight"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            app:layout_constraintTop_toBottomOf="@id/tvLight"
             app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"/>
+            app:layout_constraintTop_toBottomOf="@id/tvLight" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
